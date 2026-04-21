@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  clerkOrgId  String   @unique @map("clerk_org_id")
+  stripeCustomerId String? @unique @map("stripe_customer_id")
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  projects    Project[]
+  auditLogs   AuditLog[]
+
+  @@map("organizations")
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  slug      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  environments Environment[]
+  flags        Flag[]
+  apiKeys      ApiKey[]
+
+  @@unique([orgId, slug])
+  @@map("projects")
+}
+
+model Environment {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  key       String
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project     Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apiKeys     ApiKey[]
+  flagConfigs FlagEnvironmentConfig[]
+  evalEvents  EvaluationEvent[]
+  evalRollups EvaluationRollup[]
+
+  @@unique([projectId, key])
+  @@map("environments")
+}
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  environmentId String    @map("environment_id")
+  keyHash       String    @unique @map("key_hash")
+  keyPrefix     String    @map("key_prefix")
+  type          ApiKeyType
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  revokedAt     DateTime? @map("revoked_at")
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model Flag {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  key         String
+  name        String
+  description String?
+  type        FlagType @default(BOOLEAN)
+  variants    Json
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project     Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  envConfigs  FlagEnvironmentConfig[]
+  evalEvents  EvaluationEvent[]
+
+  @@unique([projectId, key])
+  @@map("flags")
+}
+
+model FlagEnvironmentConfig {
+  id               String   @id @default(cuid())
+  flagId           String   @map("flag_id")
+  environmentId    String   @map("environment_id")
+  enabled          Boolean  @default(false)
+  defaultVariantKey String  @map("default_variant_key")
+  rules            Json     @default("[]")
+  rollout          Json     @default("{}")
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  flag        Flag        @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([flagId, environmentId])
+  @@map("flag_environment_configs")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  orgId        String   @map("org_id")
+  actorUserId  String   @map("actor_user_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  diff         Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// Partitioned by day in prod via pg — Prisma handles as a regular table for MVP
+model EvaluationEvent {
+  id            String   @id @default(cuid())
+  environmentId String   @map("environment_id")
+  flagId        String   @map("flag_id")
+  flagKey       String   @map("flag_key")
+  variantKey    String   @map("variant_key")
+  userKeyHash   String   @map("user_key_hash")
+  attributes    Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  flag        Flag        @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@index([environmentId, flagKey, createdAt(sort: Desc)])
+  @@map("evaluation_events")
+}
+
+model EvaluationRollup {
+  environmentId String   @map("environment_id")
+  flagKey       String   @map("flag_key")
+  variantKey    String   @map("variant_key")
+  hour          DateTime
+  count         Int      @default(0)
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@id([environmentId, flagKey, variantKey, hour])
+  @@map("evaluation_rollups")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum FlagType {
+  BOOLEAN
+  MULTIVARIATE
+}
+
+enum ApiKeyType {
+  SERVER
+  CLIENT
+}

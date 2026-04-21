@@ -1,0 +1,40 @@
+{
+  "name": "@flagforge/sdk-js",
+  "version": "0.1.0",
+  "description": "FlagForge JavaScript/TypeScript SDK",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "size": "size-limit"
+  },
+  "dependencies": {
+    "@flagforge/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "msw": "^2.7.0",
+    "size-limit": "^11.1.6",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "size-limit": [
+    {
+      "path": "./dist/index.mjs",
+      "limit": "12 KB"
+    }
+  ]
+}
