@@ -6,9 +6,11 @@ import { generateApiKey } from '../lib/api-key.js'
 import { createHash } from 'crypto'
 
 async function requireOrgAccess(orgId: string, clerkUserId: string) {
-  const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) throw new Error('Organization not found')
-  return org
+  return prisma.organization.upsert({
+    where: { clerkOrgId: orgId },
+    create: { clerkOrgId: orgId, name: orgId, slug: orgId },
+    update: {},
+  })
 }
 
 export async function projectRoutes(app: FastifyInstance) {
@@ -16,12 +18,13 @@ export async function projectRoutes(app: FastifyInstance) {
     const { orgId, userId } = getAuth(request)
     if (!orgId || !userId) return reply.status(401).send({ error: 'Unauthorized' })
 
-    const org = await prisma.organization.findUnique({
+    const org = await prisma.organization.upsert({
       where: { clerkOrgId: orgId },
+      create: { clerkOrgId: orgId, name: orgId, slug: orgId },
+      update: {},
       include: { projects: { include: { environments: true } } },
     })
 
-    if (!org) return reply.status(404).send({ error: 'Organization not found' })
     return reply.send(org.projects)
   })
 

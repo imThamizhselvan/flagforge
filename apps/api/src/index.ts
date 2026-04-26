@@ -17,7 +17,15 @@ const app = Fastify({ logger: true })
 
 await app.register(helmet)
 await app.register(cors, {
-  origin: process.env['DASHBOARD_URL'] ?? 'http://localhost:5173',
+  origin: (origin, cb) => {
+    const allowed = process.env['DASHBOARD_URL'] ?? 'http://localhost:5173'
+    const isDev = process.env['NODE_ENV'] !== 'production'
+    if (!origin || (isDev && origin.startsWith('http://localhost')) || origin === allowed) {
+      cb(null, true)
+    } else {
+      cb(new Error('Not allowed by CORS'), false)
+    }
+  },
   credentials: true,
 })
 await app.register(rateLimit, { max: 200, timeWindow: '1 minute' })

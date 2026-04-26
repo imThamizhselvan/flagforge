@@ -2,23 +2,30 @@ import type { FastifyInstance } from 'fastify'
 import { getAuth } from '@clerk/fastify'
 import { prisma } from '@flagforge/db'
 import { z } from 'zod'
-import { RuleSchema, VariantSchema } from '@flagforge/shared'
+import { RuleSchema } from '@flagforge/shared'
 import { buildSdkConfig } from '../lib/config.js'
 import { broadcastConfigUpdate } from './sdk.js'
 
 async function requireProjectAccess(projectId: string, clerkOrgId: string) {
+  const org = await prisma.organization.upsert({
+    where: { clerkOrgId },
+    create: { clerkOrgId, name: clerkOrgId, slug: clerkOrgId },
+    update: {},
+  })
+
   const project = await prisma.project.findFirst({
-    where: { id: projectId, org: { clerkOrgId } },
+    where: { id: projectId, orgId: org.id },
     include: { environments: true },
   })
   if (!project) throw new Error('Project not found')
-  return project
+  return { project, org }
 }
 
-async function writeAuditLog(orgId: string, userId: string, action: string, resourceType: string, resourceId: string, diff?: object) {
-  await prisma.auditLog.create({
+// Fire-and-forget audit log — never blocks a response
+function writeAuditLog(orgId: string, userId: string, action: string, resourceType: string, resourceId: string, diff?: object) {
+  prisma.auditLog.create({
     data: { orgId, actorUserId: userId, action, resourceType, resourceId, diff: diff ?? null },
-  })
+  }).catch(() => {})
 }
 
 export async function flagRoutes(app: FastifyInstance) {
@@ -51,9 +58,7 @@ export async function flagRoutes(app: FastifyInstance) {
     }).safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
 
-    const project = await requireProjectAccess(projectId, orgId)
-    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-    if (!org) return reply.status(404).send({ error: 'Org not found' })
+    const { project, org } = await requireProjectAccess(projectId, orgId)
 
     const defaultVariants = body.data.type === 'BOOLEAN'
       ? [{ key: 'off', value: false }, { key: 'on', value: true }]
@@ -77,10 +82,10 @@ export async function flagRoutes(app: FastifyInstance) {
           })),
         },
       },
-      include: { envConfigs: true },
+      include: { envConfigs: { include: { environment: true } } },
     })
 
-    await writeAuditLog(org.id, userId, 'flag.created', 'flag', flag.id)
+    writeAuditLog(org.id, userId, 'flag.created', 'flag', flag.id)
     return reply.status(201).send(flag)
   })
 
@@ -89,8 +94,11 @@ export async function flagRoutes(app: FastifyInstance) {
     if (!orgId || !userId) return reply.status(401).send({ error: 'Unauthorized' })
 
     const { flagId } = request.params as { flagId: string }
+    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+    if (!org) return reply.status(404).send({ error: 'Org not found' })
+
     const flag = await prisma.flag.findFirst({
-      where: { id: flagId, project: { org: { clerkOrgId: orgId } } },
+      where: { id: flagId, project: { orgId: org.id } },
       include: { envConfigs: { include: { environment: true } } },
     })
     if (!flag) return reply.status(404).send({ error: 'Flag not found' })
@@ -110,8 +118,11 @@ export async function flagRoutes(app: FastifyInstance) {
     }).safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
 
+    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+    if (!org) return reply.status(404).send({ error: 'Org not found' })
+
     const existing = await prisma.flag.findFirst({
-      where: { id: flagId, project: { org: { clerkOrgId: orgId } } },
+      where: { id: flagId, project: { orgId: org.id } },
     })
     if (!existing) return reply.status(404).send({ error: 'Flag not found' })
 
@@ -124,13 +135,10 @@ export async function flagRoutes(app: FastifyInstance) {
       },
     })
 
-    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-    if (org) await writeAuditLog(org.id, userId, 'flag.updated', 'flag', flag.id, body.data)
-
+    writeAuditLog(org.id, userId, 'flag.updated', 'flag', flag.id, body.data)
     return reply.send(flag)
   })
 
-  // Update per-environment config (rules, rollout, enabled state)
   app.put('/flags/:flagId/environments/:envId', async (request, reply) => {
     const { orgId, userId } = getAuth(request)
     if (!orgId || !userId) return reply.status(401).send({ error: 'Unauthorized' })
@@ -144,12 +152,11 @@ export async function flagRoutes(app: FastifyInstance) {
     }).safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: body.error.flatten() })
 
+    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+    if (!org) return reply.status(404).send({ error: 'Org not found' })
+
     const existing = await prisma.flagEnvironmentConfig.findFirst({
-      where: {
-        flagId,
-        environmentId: envId,
-        flag: { project: { org: { clerkOrgId: orgId } } },
-      },
+      where: { flagId, environmentId: envId, flag: { project: { orgId: org.id } } },
     })
     if (!existing) return reply.status(404).send({ error: 'Config not found' })
 
@@ -164,13 +171,10 @@ export async function flagRoutes(app: FastifyInstance) {
       },
     })
 
-    // Broadcast updated config to SSE clients
     const sdkConfig = await buildSdkConfig(envId)
     broadcastConfigUpdate(envId, sdkConfig)
 
-    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-    if (org) await writeAuditLog(org.id, userId, 'flag_config.updated', 'flag_environment_config', config.id, body.data)
-
+    writeAuditLog(org.id, userId, 'flag_config.updated', 'flag_environment_config', config.id, body.data)
     return reply.send(config)
   })
 
@@ -186,8 +190,11 @@ export async function flagRoutes(app: FastifyInstance) {
     }).safeParse(request.query)
     if (!query.success) return reply.status(400).send({ error: query.error.flatten() })
 
+    const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+    if (!org) return reply.status(404).send({ error: 'Org not found' })
+
     const flag = await prisma.flag.findFirst({
-      where: { id: flagId, project: { org: { clerkOrgId: orgId } } },
+      where: { id: flagId, project: { orgId: org.id } },
     })
     if (!flag) return reply.status(404).send({ error: 'Flag not found' })
 
