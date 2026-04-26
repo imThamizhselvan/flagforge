@@ -16,7 +16,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "dev": "tsup src/index.ts --format esm,cjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "size": "size-limit"

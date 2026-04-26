@@ -1,3 +1,6 @@
+import { config } from 'dotenv'
+config()
+
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
@@ -18,7 +21,10 @@ await app.register(cors, {
   credentials: true,
 })
 await app.register(rateLimit, { max: 200, timeWindow: '1 minute' })
-await app.register(clerkPlugin)
+await app.register(clerkPlugin, {
+  publishableKey: process.env['CLERK_PUBLISHABLE_KEY'],
+  secretKey: process.env['CLERK_SECRET_KEY'],
+})
 
 // SDK hot path — high rate limit handled separately
 await app.register(sdkRoutes, { prefix: '/sdk/v1' })

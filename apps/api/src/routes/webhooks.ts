@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify'
 import Stripe from 'stripe'
 import { prisma } from '@flagforge/db'
 
-const stripe = new Stripe(process.env['STRIPE_SECRET_KEY']!)
+function getStripe() {
+  return new Stripe(process.env['STRIPE_SECRET_KEY']!)
+}
 
 export async function webhookRoutes(app: FastifyInstance) {
   // Clerk org webhook — sync org creation to DB
@@ -35,6 +37,7 @@ export async function webhookRoutes(app: FastifyInstance) {
     const sig = request.headers['stripe-signature'] as string
     let event: Stripe.Event
 
+    const stripe = getStripe()
     try {
       event = stripe.webhooks.constructEvent(
         request.rawBody as string,

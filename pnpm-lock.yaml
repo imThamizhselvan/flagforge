@@ -41,6 +41,9 @@ importers:
       '@flagforge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
       fastify:
         specifier: ^5.2.1
         version: 5.8.5
@@ -155,6 +158,9 @@ importers:
         specifier: ^6.1.0
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.17
       prisma:
         specifier: ^6.1.0
         version: 6.19.3(typescript@5.9.3)

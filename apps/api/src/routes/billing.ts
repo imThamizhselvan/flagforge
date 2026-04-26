@@ -3,10 +3,16 @@ import { getAuth } from '@clerk/fastify'
 import Stripe from 'stripe'
 import { prisma } from '@flagforge/db'
 
-const stripe = new Stripe(process.env['STRIPE_SECRET_KEY']!)
+function getStripe() {
+  return new Stripe(process.env['STRIPE_SECRET_KEY']!)
+}
 
-const PRO_PRICE_ID = process.env['STRIPE_PRO_PRICE_ID']!
-const DASHBOARD_URL = process.env['DASHBOARD_URL'] ?? 'http://localhost:5173'
+function getConfig() {
+  return {
+    proPriceId: process.env['STRIPE_PRO_PRICE_ID']!,
+    dashboardUrl: process.env['DASHBOARD_URL'] ?? 'http://localhost:5173',
+  }
+}
 
 export async function billingRoutes(app: FastifyInstance) {
   // Create Stripe checkout session for Pro upgrade
@@ -21,12 +27,14 @@ export async function billingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Already on Pro plan' })
     }
 
+    const stripe = getStripe()
+    const { proPriceId, dashboardUrl } = getConfig()
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [{ price: PRO_PRICE_ID, quantity: 1 }],
-      success_url: `${DASHBOARD_URL}/billing?success=true`,
-      cancel_url: `${DASHBOARD_URL}/billing?canceled=true`,
+      line_items: [{ price: proPriceId, quantity: 1 }],
+      success_url: `${dashboardUrl}/billing?success=true`,
+      cancel_url: `${dashboardUrl}/billing?canceled=true`,
       customer: org.stripeCustomerId ?? undefined,
       customer_email: org.stripeCustomerId ? undefined : undefined,
       metadata: { clerkOrgId: orgId },
@@ -46,9 +54,11 @@ export async function billingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'No billing account found' })
     }
 
+    const stripe = getStripe()
+    const { dashboardUrl } = getConfig()
     const session = await stripe.billingPortal.sessions.create({
       customer: org.stripeCustomerId,
-      return_url: `${DASHBOARD_URL}/billing`,
+      return_url: `${dashboardUrl}/billing`,
     })
 
     return reply.send({ url: session.url })

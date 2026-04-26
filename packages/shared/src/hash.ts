@@ -20,17 +20,15 @@ function murmurhash3(str: string, seed = 0): number {
   }
 
   let tail = 0
-  switch (str.length & 3) {
-    case 3: tail ^= (str.charCodeAt(i + 2) & 0xff) << 16
-    // fallthrough
-    case 2: tail ^= (str.charCodeAt(i + 1) & 0xff) << 8
-    // fallthrough
-    case 1:
-      tail ^= str.charCodeAt(i) & 0xff
-      tail = Math.imul(tail, 0xcc9e2d51)
-      tail = (tail << 15) | (tail >>> 17)
-      tail = Math.imul(tail, 0x1b873593)
-      h ^= tail
+  const rem = str.length & 3
+  if (rem >= 3) tail ^= (str.charCodeAt(i + 2) & 0xff) << 16
+  if (rem >= 2) tail ^= (str.charCodeAt(i + 1) & 0xff) << 8
+  if (rem >= 1) {
+    tail ^= str.charCodeAt(i) & 0xff
+    tail = Math.imul(tail, 0xcc9e2d51)
+    tail = (tail << 15) | (tail >>> 17)
+    tail = Math.imul(tail, 0x1b873593)
+    h ^= tail
   }
 
   h ^= str.length
