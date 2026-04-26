@@ -1,6 +1,6 @@
-import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
+import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react'
-import { Flag, FolderOpen, Key, ScrollText, LayoutDashboard } from 'lucide-react'
+import { Flag, FolderOpen, Key, ScrollText, LayoutDashboard, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = (projectId: string) => [
@@ -67,8 +67,22 @@ export function AppLayout() {
           </div>
         )}
 
-        <div className="border-t border-border p-3">
-          <UserButton afterSignOutUrl="/" />
+        <div className="border-t border-border p-3 space-y-1">
+          <NavLink
+            to="/billing"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+                isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )
+            }
+          >
+            <CreditCard className="h-4 w-4" />
+            Billing
+          </NavLink>
+          <div className="px-3 py-2">
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
       </aside>
 

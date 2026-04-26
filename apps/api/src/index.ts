@@ -8,6 +8,7 @@ import { sdkRoutes } from './routes/sdk.js'
 import { flagRoutes } from './routes/flags.js'
 import { projectRoutes } from './routes/projects.js'
 import { webhookRoutes } from './routes/webhooks.js'
+import { billingRoutes } from './routes/billing.js'
 
 const app = Fastify({ logger: true })
 
@@ -25,6 +26,9 @@ await app.register(sdkRoutes, { prefix: '/sdk/v1' })
 // Dashboard API — Clerk session auth
 await app.register(projectRoutes, { prefix: '/v1' })
 await app.register(flagRoutes, { prefix: '/v1' })
+
+// Billing routes
+await app.register(billingRoutes)
 
 // Stripe webhooks — raw body required
 await app.register(webhookRoutes, { prefix: '/webhooks' })

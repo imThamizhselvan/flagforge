@@ -6,6 +6,7 @@ import { FlagsPage } from './pages/flags'
 import { FlagDetailPage } from './pages/flag-detail'
 import { ApiKeysPage } from './pages/api-keys'
 import { AuditPage } from './pages/audit'
+import { BillingPage } from './pages/billing'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth()
@@ -35,6 +36,7 @@ export function App() {
         <Route path="/projects/:projectId/flags/:flagId" element={<FlagDetailPage />} />
         <Route path="/projects/:projectId/api-keys" element={<ApiKeysPage />} />
         <Route path="/projects/:projectId/audit" element={<AuditPage />} />
+        <Route path="/billing" element={<BillingPage />} />
       </Route>
     </Routes>
   )
